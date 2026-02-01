@@ -9,6 +9,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.send("API is running");
+});
+
 // // load credits once
 // const creditMap = loadCredits("../analytics/credits.csv");
 
