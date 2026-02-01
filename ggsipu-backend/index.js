@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("API is running");
+    res.send("API is running");
 });
 
 // // load credits once
@@ -51,7 +51,7 @@ app.post("/submit-login", async (req, res) => {
     try {
         browser = await chromium.launch({ headless: true });
         const page = await browser.newPage();
-        
+
         await page.goto("https://examweb.ggsipu.ac.in/web/login.jsp", {
             waitUntil: "networkidle",
         });

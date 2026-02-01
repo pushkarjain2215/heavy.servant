@@ -1,6 +1,8 @@
 // const API = "http://127.0.0.1:9999";
 
-const API = "http://127.0.0.1:PORT";
+// const API = "http://127.0.0.1:PORT";
+
+const API = "https://ipuresults-com.onrender.com";
 
 // Load captcha immediately when script loads (if on login page)
 if (document.readyState === "loading") {
