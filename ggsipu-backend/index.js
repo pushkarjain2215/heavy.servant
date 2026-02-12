@@ -1,5 +1,4 @@
 const express = require("express");
-const cors = require("cors");
 const { chromium } = require("playwright");
 
 // const { loadCredits } = require("../analytics/creditLoader");
@@ -11,12 +10,27 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 const app = express();
 
-// CORS: use CORS_ORIGIN whitelist if set; otherwise allow any origin (so frontend works from any host)
-const corsOptions = isProduction && process.env.CORS_ORIGIN
-    ? { origin: process.env.CORS_ORIGIN.split(",").map((o) => o.trim()) }
-    : { origin: "*", methods: "GET,POST,OPTIONS", allowedHeaders: "Content-Type" };
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+// CORS: set headers on every response so browser allows frontend to read the response
+app.use((req, res, next) => {
+    const allowed = isProduction && process.env.CORS_ORIGIN
+        ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
+        : ["*"];
+    const origin = req.headers.origin;
+    if (allowed.includes("*")) {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+    } else if (origin && allowed.includes(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+    } else if (allowed.length > 0) {
+        res.setHeader("Access-Control-Allow-Origin", allowed[0]);
+    }
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") {
+        return res.status(204).end();
+    }
+    next();
+});
+
 app.use(express.json({ limit: "1mb" }));
 
 // Health check for load balancers and orchestrators
