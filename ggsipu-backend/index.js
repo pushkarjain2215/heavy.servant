@@ -5,12 +5,26 @@ const { chromium } = require("playwright");
 // const { loadCredits } = require("../analytics/creditLoader");
 // const { calculateAnalytics } = require("../analytics/cgpaCalculator");
 
+const isProduction = process.env.NODE_ENV === "production";
+const PORT = Number(process.env.PORT) || 9999;
+const HOST = process.env.HOST || "0.0.0.0";
+
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// CORS: restrict origins in production, allow all in development
+const corsOptions = isProduction && process.env.CORS_ORIGIN
+    ? { origin: process.env.CORS_ORIGIN.split(",").map((o) => o.trim()) }
+    : {};
+app.use(cors(corsOptions));
+app.use(express.json({ limit: "1mb" }));
+
+// Health check for load balancers and orchestrators
+app.get("/health", (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
 app.get("/", (req, res) => {
-    res.send("API is running");
+    res.json({ message: "API is running", health: "/health" });
 });
 
 // // load credits once
@@ -35,10 +49,12 @@ app.get("/init-login", async (req, res) => {
             captcha: captchaBuffer.toString("base64"),
         });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, message: err.message });
+        }
     } finally {
         if (browser) {
-            await browser.close();
+            await browser.close().catch(() => {});
         }
     }
 });
@@ -46,7 +62,14 @@ app.get("/init-login", async (req, res) => {
 // ---------- LOGIN + RESULT + ANALYTICS ----------
 app.post("/submit-login", async (req, res) => {
     let browser;
-    const { username, password, captcha } = req.body;
+    const { username, password, captcha } = req.body || {};
+
+    if (!username || !password || !captcha) {
+        return res.status(400).json({
+            success: false,
+            message: "Missing required fields: username, password, captcha",
+        });
+    }
 
     try {
         browser = await chromium.launch({ headless: true });
@@ -135,16 +158,37 @@ app.post("/submit-login", async (req, res) => {
             // analytics,
         });
     } catch (err) {
-        res.json({ success: false, message: err.message });
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, message: err.message });
+        }
     } finally {
         if (browser) {
-            await browser.close();
+            await browser.close().catch(() => {});
         }
     }
 });
 
-const PORT = process.env.PORT || 9999;
-
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: "Not found" });
 });
+
+// Global error handler (unhandled errors in route handlers)
+app.use((err, req, res, next) => {
+    if (res.headersSent) return next(err);
+    console.error("Unhandled error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+});
+
+const server = app.listen(PORT, HOST, () => {
+    console.log(`Server running on http://${HOST}:${PORT} (NODE_ENV=${process.env.NODE_ENV || "development"})`);
+});
+
+// Graceful shutdown
+function shutdown(signal) {
+    console.log(`${signal} received, closing server`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 10000);
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

@@ -1,8 +1,8 @@
-// const API = "http://127.0.0.1:9999";
-
-// const API = "http://127.0.0.1:PORT";
-
-const API = "https://ipuresults-com.onrender.com";
+// API base URL: set window.API_BASE before this script, or use same-origin (empty string).
+// Examples: '' (same origin), 'https://your-api.onrender.com', 'http://localhost:9999'
+const API = (typeof window !== "undefined" && window.API_BASE !== undefined)
+    ? window.API_BASE
+    : "";
 
 // Load captcha immediately when script loads (if on login page)
 if (document.readyState === "loading") {
@@ -58,21 +58,21 @@ async function loadCaptcha() {
 
     try {
         const res = await fetch(API + "/init-login");
-        const data = await res.json();
-
+        const data = await res.json().catch(() => ({}));
+        if (!data || !data.captcha) {
+            loader.innerHTML =
+                '<span style="color: #dc2626;">Failed to load captcha. Click reload.</span>';
+            return;
+        }
         // Set image source and wait for it to load
         img.onload = () => {
-            // Hide loader, show image
             loader.style.display = "none";
             img.style.display = "block";
         };
-
         img.onerror = () => {
-            // If image fails to load, show error
             loader.innerHTML =
                 '<span style="color: #dc2626;">Failed to load captcha. Click reload.</span>';
         };
-
         img.src = "data:image/png;base64," + data.captcha;
     } catch (err) {
         console.error("Captcha fetch failed", err);
@@ -90,22 +90,35 @@ async function login() {
 
     status.innerText = "Fetching result...";
 
-    const res = await fetch(API + "/submit-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, captcha }),
-    });
+    try {
+        const res = await fetch(API + "/submit-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password, captcha }),
+        });
 
-    const data = await res.json();
+        let data;
+        try {
+            data = await res.json();
+        } catch {
+            status.innerText = "Invalid response from server. Please try again.";
+            loadCaptcha();
+            return;
+        }
 
-    if (!data.success) {
-        status.innerText = data.message;
+        if (!data.success) {
+            status.innerText = data.message || "Request failed.";
+            loadCaptcha();
+            return;
+        }
+
+        localStorage.setItem("resultData", JSON.stringify(data));
+        window.location.href = "dashboard.html";
+    } catch (err) {
+        console.error("Login request failed", err);
+        status.innerText = "Network error. Check your connection and try again.";
         loadCaptcha();
-        return;
     }
-
-    localStorage.setItem("resultData", JSON.stringify(data));
-    window.location.href = "dashboard.html";
 }
 
 // ---------- DASHBOARD LOGIC ----------

@@ -1,0 +1,14 @@
+# Optional: Render Blueprint for backend API
+# Deploy from Render dashboard or: render deploy
+services:
+  - type: web
+    name: ggsipu-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Add CORS_ORIGIN if frontend is on a different domain:
+      # - key: CORS_ORIGIN
+      #   value: https://your-frontend.vercel.app
