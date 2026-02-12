@@ -102,8 +102,9 @@ async function loadCaptcha() {
     } catch (err) {
         clearTimeout(longLoadTimer);
         console.error("Captcha fetch failed", err);
+        const apiLabel = API ? API.replace(/^https?:\/\//, "").slice(0, 30) : "backend";
         loader.innerHTML =
-            '<span style="color: #dc2626;">Network error. Check connection and click reload.</span>';
+            '<span style="color: #dc2626;">Network error. Check connection and that ' + apiLabel + ' is reachable. Click reload.</span>';
     }
 }
 

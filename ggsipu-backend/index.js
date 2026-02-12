@@ -11,10 +11,10 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 const app = express();
 
-// CORS: restrict origins in production, allow all in development
+// CORS: use CORS_ORIGIN whitelist if set; otherwise allow any origin (so frontend works without env)
 const corsOptions = isProduction && process.env.CORS_ORIGIN
-    ? { origin: process.env.CORS_ORIGIN.split(",").map((o) => o.trim()) }
-    : {};
+    ? { origin: process.env.CORS_ORIGIN.split(",").map((o) => o.trim()), credentials: false }
+    : { origin: true };
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
 
