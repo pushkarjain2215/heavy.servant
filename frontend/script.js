@@ -4,20 +4,19 @@ const API = (typeof window !== "undefined" && window.API_BASE !== undefined)
     ? window.API_BASE
     : "";
 
-// Load captcha immediately when script loads (if on login page)
-if (document.readyState === "loading") {
-    // If DOM is still loading, wait for it
-    document.addEventListener("DOMContentLoaded", () => {
-        if (!window.location.pathname.includes("dashboard")) {
-            loadCaptcha();
-        }
-    });
-} else {
-    // DOM is already loaded
-    if (!window.location.pathname.includes("dashboard")) {
+// Load captcha when DOM is ready (login page only)
+function scheduleCaptchaLoad() {
+    if (window.location.pathname.includes("dashboard")) return;
+    function run() {
         loadCaptcha();
     }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", run);
+    } else {
+        run();
+    }
 }
+scheduleCaptchaLoad();
 
 // Helper function to safely format numbers
 function formatNumber(value, decimalPlaces = 2) {
@@ -47,24 +46,50 @@ function togglePasswordVisibility() {
 }
 
 // ---------- CAPTCHA ----------
+function restoreCaptchaMarkup(container) {
+    if (!container) return;
+    container.innerHTML =
+        '<div id="captchaLoader" class="captcha-loader">' +
+        '<svg class="spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg><span>Loading captcha...</span></div>' +
+        '<img id="captchaImg" alt="" style="display: none;">';
+}
+
 async function loadCaptcha() {
-    const img = document.getElementById("captchaImg");
-    const loader = document.getElementById("captchaLoader");
-    if (!img || !loader) return;
+    const container = document.querySelector(".captcha-image");
+    let img = document.getElementById("captchaImg");
+    let loader = document.getElementById("captchaLoader");
+
+    if (!container) return;
+    if (!img || !loader) {
+        restoreCaptchaMarkup(container);
+        img = document.getElementById("captchaImg");
+        loader = document.getElementById("captchaLoader");
+        if (!img || !loader) return;
+    }
 
     // Show loader, hide image
     loader.style.display = "flex";
+    loader.innerHTML =
+        '<svg class="spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg><span>Loading captcha...</span>';
     img.style.display = "none";
+    img.src = "";
+
+    const longLoadTimer = setTimeout(() => {
+        if (loader.querySelector("span")) {
+            loader.querySelector("span").textContent =
+                "Still loading… (backend may be waking up). Wait or click reload.";
+        }
+    }, 12000);
 
     try {
         const res = await fetch(API + "/init-login");
         const data = await res.json().catch(() => ({}));
+        clearTimeout(longLoadTimer);
         if (!data || !data.captcha) {
-            loader.innerHTML =
-                '<span style="color: #dc2626;">Failed to load captcha. Click reload.</span>';
+            const msg = (data && data.message) ? data.message : "Failed to load captcha. Click reload.";
+            loader.innerHTML = '<span style="color: #dc2626;">' + msg + "</span>";
             return;
         }
-        // Set image source and wait for it to load
         img.onload = () => {
             loader.style.display = "none";
             img.style.display = "block";
@@ -75,9 +100,10 @@ async function loadCaptcha() {
         };
         img.src = "data:image/png;base64," + data.captcha;
     } catch (err) {
+        clearTimeout(longLoadTimer);
         console.error("Captcha fetch failed", err);
         loader.innerHTML =
-            '<span style="color: #dc2626;">Failed to load captcha. Click reload.</span>';
+            '<span style="color: #dc2626;">Network error. Check connection and click reload.</span>';
     }
 }
 
